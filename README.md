@@ -13,7 +13,7 @@ Press **K**: the process is **dead**. Press **T**: the whole tree gets **erased*
 ## 🌀 100% Vibe Coding (cope and seethe)
 Yes, this project was built with pure **vibe coding** energy.
 
-If you have something against vibe coding, that's fine — just know that in my headcanon even the **Godfather Linus Torvalds** has shipped stuff that feels like it came straight from the vibe dimension.
+If you have something against vibe coding, that's fine — just know that in my headcanon even the **Godfather Linus Torvalds** has shipped stuff that came straight from the vibe dimension.
 
 Don’t believe me? Here’s the “proof” (or at least the funniest exhibit A):
 https://github.com/torvalds/AudioNoise
