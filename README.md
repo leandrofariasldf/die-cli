@@ -15,6 +15,14 @@ Think *htop vibes*, but focused on one thing:
 
 ---
 
+## 🖥️ **See it In Action!**
+
+
+https://github.com/user-attachments/assets/f1f384d2-f39a-4486-9e78-3fa5144b2195
+
+![die-cli demo](assets/demo.png)
+---
+
 ## ⚠️ DANGEROUS BY DESIGN
 This is not a “friendly” tool.  
 It’s for operators who already have permissions… and accept consequences.
@@ -97,11 +105,11 @@ By using `die-cli`, you accept that:
 
 ## 🎮 Keybindings
 - `↑ / ↓` — navigate  
-- `k` — **kill** selected process (no confirmation)
-- `t` — **kill tree** (parent + all children recursively, children first)
+- `K` — **kill** selected process (no confirmation)
+- `T` — **kill tree** (parent + all children recursively, children first)
 - `/` — filter by name
-- `r` — manual refresh
-- `q` — quit
+- `R` — manual refresh
+- `Q` — quit
 
 Bottom bar shows `STATUS` for your most recent act of violence.
 
@@ -110,6 +118,8 @@ Bottom bar shows `STATUS` for your most recent act of violence.
 ## 🧨 Admin / Elevation
 **Run as Administrator.**  
 Some processes require elevation to terminate — without it, your “process exterminator” becomes a **strongly-worded request generator**.
+
+If elevation is denied/cancelled, die-cli will not pretend it can help. It will simply… not.
 
 If you want a quick “runas” shortcut:
 - Open an elevated terminal (Admin)
@@ -129,3 +139,28 @@ Install dependencies:
 
 ```powershell
 py -m pip install -r requirements.txt
+```
+
+Then run:
+```
+py main.py
+```
+
+## 📦 Install (release)
+**From GitHub Releases (portable)**
+
+Download the `.zip`
+
+Extract anywhere
+
+Run `die-cli.exe`
+
+## From Winget (after PR is merged)
+```
+winget install --id leandrofariasldf.die-cli
+```
+
+## License
+**MIT**
+
+**For my FOSS Fellas**
