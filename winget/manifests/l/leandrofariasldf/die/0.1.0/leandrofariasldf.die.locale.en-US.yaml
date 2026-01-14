@@ -1,0 +1,14 @@
+PackageIdentifier: leandrofariasldf.die
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: leandrofariasldf
+PackageName: die-cli
+PackageUrl: https://github.com/leandrofariasldf/die-cli
+License: Proprietary
+ShortDescription: ASCII TUI process exterminator for Windows.
+Tags:
+- tui
+- process
+- windows
+ManifestType: defaultLocale
+ManifestVersion: 1.5.0

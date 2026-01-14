@@ -1,0 +1,11 @@
+PackageIdentifier: leandrofariasldf.die
+PackageVersion: 0.1.0
+InstallerType: portable
+Commands:
+- die-cli
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/leandrofariasldf/die-cli/releases/download/v0.1.0/die-cli.exe
+  InstallerSha256: <TO_FILL>
+ManifestType: installer
+ManifestVersion: 1.5.0
