@@ -13,3 +13,7 @@ dist/
 release/
 *.exe
 *.zip
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

@@ -118,6 +118,18 @@ Bottom bar shows `STATUS` for your most recent act of violence.
 ## 🧨 Admin / Elevation
 **Run as Administrator.**  
 Some processes require elevation to terminate — without it, your “process exterminator” becomes a **strongly-worded request generator**.
+=======
+## CLI flags
+
+- `die-cli --version` / `-v` prints the version and exits
+- `die-cli --help` / `-h` prints usage and exits
+
+Admin is required to run the full TUI and to terminate protected processes.
+
+---
+
+## 📦 Requirements
+
 
 If elevation is denied/cancelled, die-cli will not pretend it can help. It will simply… not.
 
@@ -131,6 +143,9 @@ If you want a quick “runas” shortcut:
 - **Python 3.12+**
 - `psutil`
 - `windows-curses` (required on Windows)
+
+Note: die-cli auto-elevates to admin; if UAC is denied, it exits with "RUN AS ADMIN OR GO HOME".
+Tip: to keep the same terminal window, install `gsudo` and die-cli will relaunch through it.
 
 ---
 

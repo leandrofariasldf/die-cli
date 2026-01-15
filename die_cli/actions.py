@@ -7,6 +7,7 @@ import psutil
 def _set_status(state, message):
     with state.lock:
         state.status = message
+    state.ui_event.set()
 
 
 def _terminate_then_kill(proc):

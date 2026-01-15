@@ -1,4 +1,8 @@
+import curses
+import ctypes
 import msvcrt
+import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -17,6 +21,8 @@ from .actions import action_worker
 from .process_snapshot import collect_snapshot
 
 REFRESH_UI_HZ = 30
+POLL_INTERVAL_WT = 0.05
+POLL_INTERVAL_CONHOST = 0.12
 NET_BAR_CAPS = {"KBPS": 2000.0, "MBPS": 200.0, "GBPS": 2.0}
 LOGO_DIE_BASE = [
     "██████╗ ██╗███████╗",
@@ -70,6 +76,7 @@ class SharedState:
         self.beep_queue = []
         self.running = True
         self.refresh_event = threading.Event()
+        self.ui_event = threading.Event()
         self.system = {}
 
 
@@ -265,6 +272,7 @@ def _handle_filter_input(key, state):
             state.filter_mode = False
             state.filter_input = ""
             state.status = "FILTER CANCELED"
+        state.ui_event.set()
         return
 
     if key == "ENTER":
@@ -275,16 +283,19 @@ def _handle_filter_input(key, state):
                 state.status = f"FILTER ON: {state.filter_text}"
             else:
                 state.status = "FILTER CLEARED"
+        state.ui_event.set()
         return
 
     if key == "BACKSPACE":
         with state.lock:
             state.filter_input = state.filter_input[:-1]
+        state.ui_event.set()
         return
 
     if key == "CTRL_BACKSPACE":
         with state.lock:
             state.filter_input = ""
+        state.ui_event.set()
         return
 
     if isinstance(key, str) and len(key) == 1:
@@ -292,6 +303,7 @@ def _handle_filter_input(key, state):
         if 32 <= code <= 126:
             with state.lock:
                 state.filter_input += key
+            state.ui_event.set()
 
 
 def _handle_normal_input(key, state, rows, selected_idx):
@@ -311,6 +323,7 @@ def _handle_normal_input(key, state, rows, selected_idx):
         with state.lock:
             state.filter_mode = True
             state.filter_input = state.filter_text
+        state.ui_event.set()
         return
 
     if key in ("k", "K") and rows:
@@ -321,6 +334,7 @@ def _handle_normal_input(key, state, rows, selected_idx):
             state, {"kind": "KILL", "pid": row["pid"], "name": row["name"]}
         )
         _queue_beep(state, "short3")
+        state.ui_event.set()
         return
 
     if key in ("t", "T") and rows:
@@ -331,12 +345,14 @@ def _handle_normal_input(key, state, rows, selected_idx):
             state, {"kind": "KILL_TREE", "pid": row["pid"], "name": row["name"]}
         )
         _queue_beep(state, "long")
+        state.ui_event.set()
         return
 
     if key in ("r", "R"):
         with state.lock:
             state.status = "REFRESH"
         state.refresh_event.set()
+        state.ui_event.set()
         return
 
     if key == "UP" and rows:
@@ -344,6 +360,7 @@ def _handle_normal_input(key, state, rows, selected_idx):
         with state.lock:
             state.selected_idx = new_idx
             state.selected_pid = rows[new_idx]["pid"]
+        state.ui_event.set()
         return
 
     if key == "DOWN" and rows:
@@ -351,6 +368,7 @@ def _handle_normal_input(key, state, rows, selected_idx):
         with state.lock:
             state.selected_idx = new_idx
             state.selected_pid = rows[new_idx]["pid"]
+        state.ui_event.set()
 
 
 def _build_table(view):
@@ -591,28 +609,173 @@ def _calc_max_rows(height):
     reserved = LOGO_HEIGHT + 8
     return max(1, height - reserved)
 
+def _enable_vt_mode():
+    if os.name != "nt":
+        return False
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        DISABLE_NEWLINE_AUTO_RETURN = 0x0008
 
-def ui_loop(state):
-    console = Console(color_system="truecolor")
-    with Live(
-        console=console,
-        refresh_per_second=REFRESH_UI_HZ,
-        screen=True,
-    ) as live:
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN
+        if not kernel32.SetConsoleMode(handle, new_mode):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _get_terminal_size():
+    try:
+        size = os.get_terminal_size()
+        return size.columns, size.lines
+    except OSError:
+        return 80, 24
+
+
+def _truncate_ansi(line, max_width):
+    if max_width <= 0:
+        return ""
+    out = []
+    count = 0
+    i = 0
+    while i < len(line) and count < max_width:
+        ch = line[i]
+        if ch == "\x1b" and i + 1 < len(line) and line[i + 1] == "[":
+            end = line.find("m", i)
+            if end == -1:
+                break
+            out.append(line[i : end + 1])
+            i = end + 1
+            continue
+        if ch in ("\r", "\n"):
+            break
+        out.append(ch)
+        count += 1
+        i += 1
+    out.append("\x1b[0m")
+    return "".join(out)
+
+
+def _render_ansi_lines(console, view, width, height):
+    with console.capture() as capture:
+        console.print(_render_ui(view))
+    text = capture.get()
+    lines = text.splitlines()
+    if len(lines) < height:
+        lines.extend([""] * (height - len(lines)))
+    else:
+        lines = lines[:height]
+    return [_truncate_ansi(line, width) for line in lines]
+
+
+def _ui_loop_conhost(state):
+    _enable_vt_mode()
+    prev_lines = []
+    dirty = True
+    console = None
+    console_size = (0, 0)
+    poll_interval = POLL_INTERVAL_CONHOST
+
+    sys.stdout.write("\x1b[?25l\x1b[2J\x1b[H")
+    sys.stdout.flush()
+    try:
         while state.running:
-            height = console.size.height
+            width, height = _get_terminal_size()
             max_rows = _calc_max_rows(height)
-            view = _build_view(state, max_rows)
+
+            if (width, height) != console_size:
+                console = Console(
+                    color_system="truecolor",
+                    force_terminal=True,
+                    width=width,
+                    height=height,
+                )
+                console_size = (width, height)
+                prev_lines = [""] * height
+                dirty = True
+
             key = _read_key()
             if key is not None:
+                view = _build_view(state, max_rows)
+                dirty = True
                 if view["filter_mode"]:
                     _handle_filter_input(key, state)
                 else:
                     _handle_normal_input(key, state, view["rows"], view["selected_idx"])
 
-            view = _build_view(state, max_rows)
-            live.update(_render_ui(view), refresh=True)
-            time.sleep(1.0 / REFRESH_UI_HZ)
+            if state.ui_event.is_set():
+                state.ui_event.clear()
+                dirty = True
+
+            if dirty and console:
+                view = _build_view(state, max_rows)
+                lines = _render_ansi_lines(console, view, width, height)
+                out = []
+                for i in range(height):
+                    line = lines[i]
+                    if i >= len(prev_lines) or line != prev_lines[i]:
+                        out.append(f"\x1b[{i + 1};1H{line}\x1b[0K")
+                if out:
+                    sys.stdout.write("".join(out))
+                    sys.stdout.flush()
+                prev_lines = lines
+                dirty = False
+
+            if state.ui_event.wait(poll_interval):
+                state.ui_event.clear()
+                dirty = True
+    finally:
+        sys.stdout.write("\x1b[0m\x1b[?25h\x1b[2J\x1b[H")
+        sys.stdout.flush()
+
+
+def _ui_loop_rich(state):
+    console = Console(color_system="truecolor", force_terminal=True)
+    poll_interval = POLL_INTERVAL_WT
+    with Live(
+        console=console,
+        screen=True,
+        auto_refresh=False,
+    ) as live:
+        dirty = True
+        while state.running:
+            height = console.size.height
+            max_rows = _calc_max_rows(height)
+            key = _read_key()
+            if key is not None:
+                view = _build_view(state, max_rows)
+                dirty = True
+                if view["filter_mode"]:
+                    _handle_filter_input(key, state)
+                else:
+                    _handle_normal_input(key, state, view["rows"], view["selected_idx"])
+
+            if state.ui_event.is_set():
+                state.ui_event.clear()
+                dirty = True
+
+            if dirty:
+                view = _build_view(state, max_rows)
+                live.update(_render_ui(view), refresh=True)
+                dirty = False
+                continue
+
+            if state.ui_event.wait(poll_interval):
+                state.ui_event.clear()
+                dirty = True
+
+
+def ui_loop(state):
+    if os.getenv("WT_SESSION"):
+        _ui_loop_rich(state)
+    else:
+        _ui_loop_conhost(state)
 
 
 def _main():
