@@ -105,11 +105,11 @@ By using `die-cli`, you accept that:
 
 ## 🎮 Keybindings
 - `↑ / ↓` — navigate  
-- `K` — **kill** selected process (no confirmation)
-- `T` — **kill tree** (parent + all children recursively, children first)
+- `k` — **kill** selected process (no confirmation)
+- `t` — **kill tree** (parent + all children recursively, children first)
 - `/` — filter by name
-- `R` — manual refresh
-- `Q` — quit
+- `r` — manual refresh
+- `q` — quit
 
 Bottom bar shows `STATUS` for your most recent act of violence.
 
@@ -160,8 +160,12 @@ Then run:
 ```
 py main.py
 ```
+## Install From Winget (Prefered and painless)
+```
+winget install leandrofariasldf.die-cli
+```
 
-## 📦 Install (release)
+## 📦 Or... (release)
 **From GitHub Releases (portable)**
 
 Download the `.zip`
@@ -169,11 +173,6 @@ Download the `.zip`
 Extract anywhere
 
 Run `die-cli.exe`
-
-## From Winget (after PR is merged)
-```
-winget install --id leandrofariasldf.die-cli
-```
 
 ## License
 **MIT**
